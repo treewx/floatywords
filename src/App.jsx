@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { Text, OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import './App.css';
 
@@ -75,6 +75,7 @@ function App() {
   const [words, setWords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [urlInput, setUrlInput] = useState('');
+  const [cameraDistance, setCameraDistance] = useState(8);
 
   const synth = useRef(window.speechSynthesis);
   const utteranceRef = useRef(null);
@@ -253,7 +254,15 @@ function App() {
   return (
     <div className="app-container">
       <div className="canvas-container">
-        <Canvas camera={{ position: [0, 0, 5] }}>
+        <Canvas shadowMap>
+          <PerspectiveCamera makeDefault position={[0, 0, cameraDistance]} fov={75} />
+          <OrbitControls
+            enablePan={true}
+            enableZoom={true}
+            makeDefault
+            minDistance={2}
+            maxDistance={20}
+          />
           <WordScene words={words} setWords={setWords} fadeSpeed={fadeSpeed} />
         </Canvas>
       </div>
@@ -306,6 +315,18 @@ function App() {
               step="0.1"
               value={speechRate}
               onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
+            />
+          </div>
+
+          <div className="slider-group">
+            <label>Zoom: {cameraDistance}m</label>
+            <input
+              type="range"
+              min="3"
+              max="15"
+              step="0.5"
+              value={cameraDistance}
+              onChange={(e) => setCameraDistance(parseFloat(e.target.value))}
             />
           </div>
 
