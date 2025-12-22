@@ -98,11 +98,14 @@ function App() {
 
     setLoading(true);
     try {
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&timestamp=${Date.now()}`;
       const response = await fetch(proxyUrl);
+
+      if (!response.ok) throw new Error(`Proxy returned status ${response.status}`);
+
       const data = await response.json();
 
-      if (data.contents) {
+      if (data && data.contents) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(data.contents, 'text/html');
 
