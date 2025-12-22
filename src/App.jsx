@@ -37,10 +37,22 @@ function WordScene({ words, setWords, fadeSpeed }) {
     setWords((prev) => prev.filter((w) => w.id !== id));
   };
 
+  const meshRef = useRef();
+  useFrame((state, delta) => {
+    if (meshRef.current) {
+      meshRef.current.rotation.x += delta * 0.5;
+      meshRef.current.rotation.y += delta * 0.5;
+    }
+  });
+
   return (
     <>
-      <ambientLight intensity={0.5} />
-      <pointLight position={[10, 10, 10]} />
+      <ambientLight intensity={0.8} />
+      <pointLight position={[10, 10, 10]} intensity={1.5} />
+      <mesh ref={meshRef} position={[0, 0, -2]}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color="#8a2be2" wireframe opacity={0.3} transparent />
+      </mesh>
       {words.map((word) => (
         <FloatingWord
           key={word.id}
@@ -155,24 +167,64 @@ function App() {
     utterance.rate = speechRate;
     utteranceRef.current = utterance;
 
-    utterance.onstart = () => setIsPlaying(true);
-    utterance.onend = () => setIsPlaying(false);
-    utterance.onerror = () => setIsPlaying(false);
+    utterance.onstart = () => {
+      setIsPlaying(true);
+      // Fallback for mobile: If no boundary event fires in 1s, start manual timer
+      const timer = setTimeout(() => {
+        if (!boundaryFired.current) {
+          console.log('Mobile fallback: Starting manual word timer');
+          startManualSpawn();
+        }
+      }, 1000);
+      fallbackTimer.current = timer;
+    };
+    utterance.onend = () => cleanupSpeech();
+    utterance.onerror = () => cleanupSpeech();
 
     utterance.onboundary = (event) => {
+      boundaryFired.current = true;
       if (event.name === 'word') {
         const charIndex = event.charIndex;
-        // Simple word extraction
         const textAfter = text.slice(charIndex);
         const match = textAfter.match(/^(\S+)/);
         if (match) {
-          const wordText = match[1].replace(/[.,!?;:]/g, ''); // Clean punctuation
+          const wordText = match[1].replace(/[.,!?;:]/g, '');
           spawnWord(wordText);
         }
       }
     };
 
     synth.current.speak(utterance);
+  };
+
+  const boundaryFired = useRef(false);
+  const fallbackTimer = useRef(null);
+  const manualInterval = useRef(null);
+
+  const cleanupSpeech = () => {
+    setIsPlaying(false);
+    if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
+    if (manualInterval.current) clearInterval(manualInterval.current);
+    boundaryFired.current = false;
+  };
+
+  const startManualSpawn = () => {
+    const wordsList = text.split(/\s+/).filter(w => w.length > 0);
+    let index = 0;
+
+    // Estimate words per minute based on rate
+    // Average speech is ~150 wpm at 1x
+    const wordsPerSecond = (150 / 60) * speechRate;
+    const intervalMs = 1000 / wordsPerSecond;
+
+    manualInterval.current = setInterval(() => {
+      if (index < wordsList.length) {
+        spawnWord(wordsList[index].replace(/[.,!?;:]/g, ''));
+        index++;
+      } else {
+        clearInterval(manualInterval.current);
+      }
+    }, intervalMs);
   };
 
   const spawnWord = (wordText) => {
