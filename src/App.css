@@ -101,8 +101,8 @@
 .controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 15px;
-  align-items: center;
+  gap: 12px;
+  align-items: flex-end;
   justify-content: space-between;
 }
 
@@ -204,28 +204,57 @@ input[type=range]::-webkit-slider-runnable-track {
   }
 
   .controls {
-    gap: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
   }
 
   .play-btn {
-    width: 100%;
-    max-width: none;
-    order: 0;
-    /* Keep play button at the top */
-    margin-bottom: 5px;
+    grid-column: 1 / -1;
+    margin-bottom: 0;
   }
 
   .slider-group {
-    width: 45%;
-    /* 2 columns for sliders */
+    width: 100%;
+    min-width: 0;
   }
 
   .clear-btn {
-    flex-grow: 1;
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .input-group {
     flex-direction: row;
+  }
+}
+
+.status-badge {
+  position: absolute;
+  top: -30px;
+  right: 20px;
+  background: rgba(138, 43, 226, 0.4);
+  backdrop-filter: blur(4px);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 10px;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

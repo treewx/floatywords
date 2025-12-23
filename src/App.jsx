@@ -76,6 +76,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [cameraDistance, setCameraDistance] = useState(8);
+  const [syncOffset, setSyncOffset] = useState(0);
+  const [syncMode, setSyncMode] = useState('Detecting...');
 
   const synth = useRef(window.speechSynthesis);
   const utteranceRef = useRef(null);
@@ -244,31 +246,38 @@ function App() {
 
       utterance.onstart = () => {
         boundaryFired.current = false;
+        // Wait 500ms instead of 1s to decide on fallback
         const timer = setTimeout(() => {
-          if (!boundaryFired.current) startManualSpawn(chunk);
-        }, 1000);
+          if (!boundaryFired.current) {
+            setSyncMode('Estimated');
+            startSmartManualSpawn(chunk);
+          }
+        }, 500);
         fallbackTimer.current = timer;
       };
 
       utterance.onend = () => {
         if (manualInterval.current) clearInterval(manualInterval.current);
         currentChunkIndex++;
-        if (isActuallyPlaying.current) {
-          speakNextChunk();
-        }
+        if (isActuallyPlaying.current) speakNextChunk();
       };
 
       utterance.onerror = () => cleanupSpeech();
 
       utterance.onboundary = (event) => {
         boundaryFired.current = true;
+        setSyncMode('Browser Native');
         if (event.name === 'word') {
-          const charIndex = event.charIndex;
-          const textAfter = chunk.slice(charIndex);
-          const match = textAfter.match(/^(\S+)/);
-          if (match) {
-            spawnWord(match[1].replace(/[.,!?;:]/g, ''));
-          }
+          // Delay by syncOffset
+          setTimeout(() => {
+            if (!isActuallyPlaying.current) return;
+            const charIndex = event.charIndex;
+            const textAfter = chunk.slice(charIndex);
+            const match = textAfter.match(/^(\S+)/);
+            if (match) {
+              spawnWord(match[1].replace(/[.,!?;:]/g, ''));
+            }
+          }, Math.max(0, syncOffset * 1000)); // syncOffset is in seconds, convert to ms
         }
       };
 
@@ -278,26 +287,47 @@ function App() {
     speakNextChunk();
   };
 
-  const startManualSpawn = (chunkText) => {
+  const startSmartManualSpawn = (chunkText) => {
     const wordsList = chunkText.split(/\s+/).filter(w => w.length > 0);
+    const totalChars = wordsList.join('').length;
     let index = 0;
-    const wordsPerSecond = (150 / 60) * speechRate;
-    const intervalMs = 1000 / wordsPerSecond;
 
-    manualInterval.current = setInterval(() => {
-      if (index < wordsList.length) {
-        spawnWord(wordsList[index].replace(/[.,!?;:]/g, ''));
-        index++;
-      } else {
-        clearInterval(manualInterval.current);
+    // Estimate total time for this chunk
+    const wordsPerSecond = (150 / 60) * speechRate; // Average words per minute / 60 seconds
+    // const totalEstimatedSeconds = wordsList.length / wordsPerSecond; // Not directly used for timing individual words
+
+    const spawnNext = () => {
+      if (!isActuallyPlaying.current || index >= wordsList.length) {
+        manualInterval.current = null; // Clear the last timeout ID
+        return;
       }
-    }, intervalMs);
+
+      const word = wordsList[index];
+      spawnWord(word.replace(/[.,!?;:]/g, ''));
+
+      // Calculate wait time based on word length relative to total length
+      // Long words get more time, short words get less.
+      const averageWordLength = totalChars / wordsList.length;
+      const wordWeight = word.length / averageWordLength;
+
+      // Base interval for an average word
+      const baseIntervalMs = 1000 / wordsPerSecond;
+
+      // Adjust interval based on word weight
+      const waitTime = baseIntervalMs * wordWeight;
+
+      index++;
+      manualInterval.current = setTimeout(spawnNext, Math.max(0, waitTime + (syncOffset * 1000))); // Apply syncOffset here too
+    };
+
+    spawnNext();
   };
 
   const handleStop = () => {
     synth.current.cancel();
     setIsPlaying(false);
     setWords([]);
+    cleanupSpeech(); // Ensure all timers and states are reset
   };
 
   return (
@@ -389,6 +419,22 @@ function App() {
               value={fadeSpeed}
               onChange={(e) => setFadeSpeed(parseFloat(e.target.value))}
             />
+          </div>
+
+          <div className="slider-group">
+            <label>Sync Offset: {syncOffset >= 0 ? '+' : ''}{syncOffset}s</label>
+            <input
+              type="range"
+              min="-2"
+              max="2"
+              step="0.1"
+              value={syncOffset}
+              onChange={(e) => setSyncOffset(parseFloat(e.target.value))}
+            />
+          </div>
+
+          <div className="status-badge">
+            Sync: {syncMode}
           </div>
         </div>
       </div>
