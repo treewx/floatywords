@@ -109,42 +109,66 @@ function App() {
     const targetUrl = urlToGrab || urlInput;
     if (!targetUrl) return;
 
+    let cleanUrl = targetUrl.trim();
+    if (!cleanUrl.startsWith('http')) cleanUrl = 'https://' + cleanUrl;
+
     setLoading(true);
+
+    // Try primary proxy (corsproxy.io)
     try {
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&timestamp=${Date.now()}`;
-      const response = await fetch(proxyUrl);
+      const response = await fetch(`https://corsproxy.io/?${encodeURIComponent(cleanUrl)}`);
+      if (response.ok) {
+        const html = await response.text();
+        if (extractFromHtml(html)) {
+          setLoading(false);
+          setUrlInput('');
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Primary proxy failed, trying fallback...', e);
+    }
 
+    // Try fallback proxy (allorigins)
+    try {
+      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(cleanUrl)}&timestamp=${Date.now()}`);
       if (!response.ok) throw new Error(`Proxy returned status ${response.status}`);
-
       const data = await response.json();
-
       if (data && data.contents) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(data.contents, 'text/html');
-
-        // Basic extraction: get main text content
-        // Remove script, style, nav, footer, ads
-        const selectorsToRemove = ['script', 'style', 'nav', 'footer', 'header', 'aside', '.ads', '#ads', '.menu'];
-        selectorsToRemove.forEach(s => {
-          doc.querySelectorAll(s).forEach(el => el.remove());
-        });
-
-        // Try to find the "article" or "main" content, otherwise use body
-        const contentArea = doc.querySelector('article') || doc.querySelector('main') || doc.body;
-        const plainText = contentArea.innerText
-          .replace(/\s+/g, ' ')
-          .replace(/\n+/g, '\n')
-          .trim();
-
-        setText(plainText);
+        if (extractFromHtml(data.contents)) {
+          setLoading(false);
+          setUrlInput('');
+          return;
+        }
       }
     } catch (error) {
-      console.error('Failed to grab content:', error);
-      alert('Could not grab content from this URL. It might be blocked or require a different proxy.');
+      console.error('All proxies failed:', error);
+      alert('Could not grab content. The website might be blocking access or the content is too large.');
     } finally {
       setLoading(false);
       setUrlInput('');
     }
+  };
+
+  const extractFromHtml = (html) => {
+    if (!html || html.length < 100) return false;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const selectorsToRemove = ['script', 'style', 'nav', 'footer', 'header', 'aside', '.ads', '#ads', '.menu', '.sidebar', '.mw-editsection', '#mw-navigation', '#toc', '.infobox'];
+    selectorsToRemove.forEach(s => doc.querySelectorAll(s).forEach(el => el.remove()));
+
+    const wikiContent = doc.querySelector('#mw-content-text');
+    const article = doc.querySelector('article') || doc.querySelector('main') || wikiContent || doc.body;
+
+    if (article) {
+      const plainText = article.innerText.replace(/\s+/g, ' ').replace(/\n+/g, '\n').trim();
+      if (plainText.length > 50) {
+        setText(plainText);
+        return true;
+      }
+    }
+    return false;
   };
 
   useEffect(() => {
