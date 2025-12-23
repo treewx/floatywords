@@ -2,7 +2,7 @@
     "name": "Floatywords",
     "short_name": "Floatywords",
     "description": "3D Text-to-Speech Content Grabber",
-    "start_url": "/",
+    "start_url": "./",
     "display": "standalone",
     "background_color": "#000000",
     "theme_color": "#8a2be2",
@@ -16,7 +16,7 @@
         }
     ],
     "share_target": {
-        "action": "/",
+        "action": "./",
         "method": "GET",
         "enctype": "application/x-www-form-urlencoded",
         "params": {
