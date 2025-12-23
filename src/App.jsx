@@ -4,12 +4,12 @@ import { Text, OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import './App.css';
 
-function FloatingWord({ text, position, fadeSpeed, onRemove }) {
+function FloatingWord({ text, position, color, fadeSpeed, onRemove }) {
   const [opacity, setOpacity] = useState(1);
 
   useFrame((state, delta) => {
     // Decrease opacity
-    const newOpacity = opacity - (delta * fadeSpeed * 0.5); // Adjust multiplier as needed
+    const newOpacity = opacity - (delta * fadeSpeed * 0.5);
     setOpacity(newOpacity);
 
     if (newOpacity <= 0) {
@@ -20,12 +20,14 @@ function FloatingWord({ text, position, fadeSpeed, onRemove }) {
   return (
     <Text
       position={position}
-      fontSize={0.5}
-      color="white"
+      fontSize={0.4}
+      color={color || "white"}
       anchorX="center"
       anchorY="middle"
       fillOpacity={opacity}
-      outlineOpacity={opacity} // Fade outline if present (default is none but good to have)
+      outlineOpacity={opacity}
+      outlineWidth={0.02}
+      outlineColor="black"
     >
       {text}
     </Text>
@@ -58,6 +60,7 @@ function WordScene({ words, setWords, fadeSpeed }) {
           key={word.id}
           text={word.text}
           position={word.position}
+          color={word.color}
           fadeSpeed={fadeSpeed}
           onRemove={() => removeWord(word.id)}
         />
@@ -196,15 +199,34 @@ function App() {
 
   const spawnWord = (wordText) => {
     const id = Math.random().toString(36).substr(2, 9);
-    const x = (Math.random() - 0.5) * 5;
-    const y = (Math.random() - 0.5) * 4;
+
+    // Portrait-optimized positioning:
+    // Narrower X to avoid edge cutting, Taller Y to use full screen height
+    const isPortrait = window.innerHeight > window.innerWidth;
+    const xRange = isPortrait ? 2.5 : 5;
+    const yRange = isPortrait ? 6 : 4;
+
+    const x = (Math.random() - 0.5) * xRange;
+    const y = (Math.random() - 0.5) * yRange;
     const z = (Math.random() * 3) - 1;
 
+    // Vibrant color palette for engagement
+    const colors = [
+      '#FF3366', // Vibrant Pink
+      '#33FF99', // Spring Green
+      '#33CCFF', // Sky Blue
+      '#FFCC33', // Golden Yellow
+      '#FF6633', // Deep Orange
+      '#CC33FF', // Electric Purple
+      '#00FFCC', // Bright Teal
+      '#FF33CC'  // Magenta
+    ];
+    const color = colors[Math.floor(Math.random() * colors.length)];
+
     setWords((prev) => {
-      // Limit to 50 words on screen at once for mobile stability
-      const newWords = [...prev, { id, text: wordText, position: [x, y, z] }];
+      const newWords = [...prev, { id, text: wordText, position: [x, y, z], color }];
       if (newWords.length > 50) {
-        return newWords.slice(newWords.length - 50);
+        return newWords.slice(-50);
       }
       return newWords;
     });
