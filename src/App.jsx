@@ -83,8 +83,11 @@ function App() {
   const fallbackTimer = useRef(null);
   const manualInterval = useRef(null);
 
+  const isActuallyPlaying = useRef(false);
+
   const cleanupSpeech = () => {
     setIsPlaying(false);
+    isActuallyPlaying.current = false;
     if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
     if (manualInterval.current) clearInterval(manualInterval.current);
     boundaryFired.current = false;
@@ -205,20 +208,25 @@ function App() {
     });
   };
 
+
   const handlePlay = () => {
-    if (isPlaying) {
+    if (isActuallyPlaying.current) {
       synth.current.cancel();
       cleanupSpeech();
       return;
     }
     if (!text) return;
 
-    // Smart Chunking: Divide text into roughly 200-word pieces or by paragraph
-    const chunks = text.match(/[^\.!\?]+[\.!\?]+/g) || [text];
+    isActuallyPlaying.current = true;
+    setIsPlaying(true);
+
+    // Better Chunking: Split by punctuation but keep the punctuation,
+    // and also catch any trailing text without punctuation.
+    const chunks = text.match(/[^.!?]+[.!?]*|/g).filter(Boolean);
     let currentChunkIndex = 0;
 
     const speakNextChunk = () => {
-      if (currentChunkIndex >= chunks.length) {
+      if (!isActuallyPlaying.current || currentChunkIndex >= chunks.length) {
         cleanupSpeech();
         return;
       }
@@ -235,7 +243,6 @@ function App() {
       utteranceRef.current = utterance;
 
       utterance.onstart = () => {
-        setIsPlaying(true);
         boundaryFired.current = false;
         const timer = setTimeout(() => {
           if (!boundaryFired.current) startManualSpawn(chunk);
@@ -244,9 +251,11 @@ function App() {
       };
 
       utterance.onend = () => {
-        currentChunkIndex++;
         if (manualInterval.current) clearInterval(manualInterval.current);
-        if (isPlaying) speakNextChunk();
+        currentChunkIndex++;
+        if (isActuallyPlaying.current) {
+          speakNextChunk();
+        }
       };
 
       utterance.onerror = () => cleanupSpeech();
